@@ -4,6 +4,14 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
 
+// Debug environment variables
+console.log('Environment Variables Debug:', {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  NODE_ENV: import.meta.env.NODE_ENV,
+  MODE: import.meta.env.MODE
+});
+
 // Firebase configuration using environment variables
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyB36Ak1zysY2wH7VfQDQOIOjQMNOft5dU0",
@@ -14,6 +22,8 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:723575726133:web:e8eab1e314ad38dc3f117c",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-0ED4KZRL64"
 };
+
+console.log('Final Firebase Config:', firebaseConfig);
 
 // EXAMPLE of how it should look (with your actual values):
 /*

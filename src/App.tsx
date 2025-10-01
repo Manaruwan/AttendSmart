@@ -8,6 +8,7 @@ import { DashboardLayout } from './components/Layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { SimpleDashboard } from './pages/SimpleDashboard';
 import { AttendancePage } from './pages/Attendance/AttendancePage';
+import FirebaseTest from './FirebaseTest';
 
 
 import { AdminSetup } from './components/Setup/AdminSetup';
@@ -96,6 +97,7 @@ function App() {
         <div className="min-h-screen bg-gray-50">
           <Routes>
             {/* Public Routes */}
+            <Route path="/firebase-test" element={<FirebaseTest />} />
             <Route path="/login" element={<FirebaseLoginForm />} />
             <Route path="/old-login" element={<LoginForm />} />
             <Route path="/firebase-login" element={<FirebaseLoginForm />} />
