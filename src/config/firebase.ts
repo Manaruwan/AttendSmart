@@ -4,16 +4,15 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
 
-// Replace with your actual Firebase configuration
-// Get these values from Firebase Console > Project Settings > General
+// Firebase configuration using environment variables
 export const firebaseConfig = {
-  apiKey: "AIzaSyB36Ak1zysY2wH7VfQDQOIOjQMNOft5dU0",
-  authDomain: "smartattend-9cbc2.firebaseapp.com",
-  projectId: "smartattend-9cbc2",
-  storageBucket: "smartattend-9cbc2.firebasestorage.app",
-  messagingSenderId: "723575726133",
-  appId: "1:723575726133:web:e8eab1e314ad38dc3f117c",
-  measurementId: "G-0ED4KZRL64"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyB36Ak1zysY2wH7VfQDQOIOjQMNOft5dU0",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "smartattend-9cbc2.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "smartattend-9cbc2",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "smartattend-9cbc2.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "723575726133",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:723575726133:web:e8eab1e314ad38dc3f117c",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-0ED4KZRL64"
 };
 
 // EXAMPLE of how it should look (with your actual values):
