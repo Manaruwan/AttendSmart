@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 import { Calendar, CheckCircle, XCircle, AlertCircle, Plus } from 'lucide-react';
@@ -23,31 +23,63 @@ const LeaveRequestSummary: React.FC = () => {
   useEffect(() => {
     if (!firebaseUser?.uid) return;
 
-    const q = query(
-      collection(db, 'leaveRequests'),
-      where('lecturerId', '==', firebaseUser.uid)
-    );
+    const fetchData = async () => {
+      try {
+        // Get real lecturer ID first
+        let actualLecturerId = firebaseUser.uid;
+        
+        if (firebaseUser.email) {
+          try {
+            const userQuery = query(
+              collection(db, 'users'), 
+              where('email', '==', firebaseUser.email),
+              where('role', '==', 'lecturer')
+            );
+            const userSnapshot = await getDocs(userQuery);
+            
+            if (!userSnapshot.empty) {
+              const lecturerDoc = userSnapshot.docs[0];
+              const lecturerInfo = lecturerDoc.data();
+              actualLecturerId = lecturerInfo.employeeId || lecturerInfo.id || actualLecturerId;
+            }
+          } catch (error) {
+            console.error('Error fetching lecturer info for dashboard:', error);
+          }
+        }
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const requests: LeaveRequest[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        requests.push({
-          id: doc.id,
-          ...data,
-          submittedAt: data.submittedAt?.toDate() || new Date(),
-        } as LeaveRequest);
-      });
-      
-      // Sort by most recent
-      requests.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
-      
-      setLeaveRequests(requests);
-      setLoading(false);
-    });
+        // Query leave requests with actual lecturer ID
+        const q = query(
+          collection(db, 'lecturerLeaveRequests'),
+          where('lecturerId', '==', actualLecturerId)
+        );
 
-    return () => unsubscribe();
-  }, [firebaseUser?.uid]);
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          const requests: LeaveRequest[] = [];
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            requests.push({
+              id: doc.id,
+              ...data,
+              submittedAt: data.submittedAt?.toDate() || new Date(),
+            } as LeaveRequest);
+          });
+          
+          // Sort by most recent
+          requests.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+          
+          setLeaveRequests(requests);
+          setLoading(false);
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('Error in fetchData:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [firebaseUser?.uid, firebaseUser?.email]);
 
   const getStats = () => {
     const pending = leaveRequests.filter(r => r.status === 'pending').length;

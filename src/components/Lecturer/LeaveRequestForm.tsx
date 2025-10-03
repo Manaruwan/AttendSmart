@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Send, X, CheckCircle, AlertCircle, User, History } from 'lucide-react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 
@@ -123,8 +123,31 @@ const LeaveRequestForm: React.FC<{ onViewHistory?: () => void }> = ({ onViewHist
     setIsSubmitting(true);
 
     try {
+      // Fetch lecturer data from database to get real lecturer ID
+      let actualLecturerId = firebaseUser?.uid || 'demo-lecturer-' + Date.now();
+      
+      if (firebaseUser?.email) {
+        try {
+          const q = query(
+            collection(db, 'users'), 
+            where('email', '==', firebaseUser.email),
+            where('role', '==', 'lecturer')
+          );
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const lecturerDoc = querySnapshot.docs[0];
+            const lecturerInfo = lecturerDoc.data();
+            actualLecturerId = lecturerInfo.employeeId || lecturerInfo.id || actualLecturerId;
+            console.log('🎓 Using actual lecturer ID:', actualLecturerId);
+          }
+        } catch (error) {
+          console.error('Error fetching lecturer data:', error);
+        }
+      }
+      
       const leaveRequest: Omit<LeaveRequest, 'id'> = {
-        lecturerId: firebaseUser?.uid || 'unknown',
+        lecturerId: actualLecturerId,
         lecturerName: formData.fullName,
         lecturerEmail: formData.email,
         leaveType: formData.leaveType,
@@ -139,7 +162,7 @@ const LeaveRequestForm: React.FC<{ onViewHistory?: () => void }> = ({ onViewHist
       };
 
       // Save to Firebase
-      await addDoc(collection(db, 'leaveRequests'), leaveRequest);
+      await addDoc(collection(db, 'lecturerLeaveRequests'), leaveRequest);
 
       // Show success message
       setShowSuccess(true);

@@ -82,8 +82,10 @@ const LeaveRequestManagement: React.FC = () => {
       }
 
       const lecturerUnsub = onSnapshot(lecturerQuery, (querySnapshot) => {
+        console.log('👩‍🏫 Lecturer leave requests from Firebase:', querySnapshot.size, 'documents');
         const lecturerRequests: UnifiedLeaveRequest[] = [];
         querySnapshot.forEach((doc) => {
+          console.log('👩‍🏫 Lecturer doc:', doc.id, doc.data());
           const data = doc.data();
           lecturerRequests.push({
             id: doc.id,
@@ -188,7 +190,7 @@ const LeaveRequestManagement: React.FC = () => {
   const handleApprove = async (requestId: string) => {
     try {
       const adminName = 'Admin'; // You can get this from auth context
-      const collectionName = selectedRequest?.requestType === 'lecturer' ? 'leaveRequests' : 'staffLeaveRequests';
+      const collectionName = selectedRequest?.requestType === 'lecturer' ? 'lecturerLeaveRequests' : 'staffLeaveRequests';
       
       await updateDoc(doc(db, collectionName, requestId), {
         status: 'approved',
@@ -219,7 +221,7 @@ const LeaveRequestManagement: React.FC = () => {
 
   const handleReject = async (requestId: string, reason: string) => {
     try {
-      const collectionName = selectedRequest?.requestType === 'lecturer' ? 'leaveRequests' : 'staffLeaveRequests';
+      const collectionName = selectedRequest?.requestType === 'lecturer' ? 'lecturerLeaveRequests' : 'staffLeaveRequests';
       
       await updateDoc(doc(db, collectionName, requestId), {
         status: 'rejected',

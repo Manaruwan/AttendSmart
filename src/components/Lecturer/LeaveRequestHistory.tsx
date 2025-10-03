@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, FileText, Eye, Filter, Search } from 'lucide-react';
@@ -30,90 +30,103 @@ const LeaveRequestHistory: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    if (!firebaseUser?.uid) {
-      // For testing purposes, create mock data when no user is authenticated
-      console.log('No authenticated user, creating mock data for testing...');
-      const mockRequests: LeaveRequest[] = [
-        {
-          id: '1',
-          lecturerId: 'test-user',
-          lecturerName: 'John Doe',
-          lecturerEmail: 'john@example.com',
-          leaveType: 'Annual Leave',
-          startDate: '2025-10-15',
-          endDate: '2025-10-17',
-          reason: 'Family vacation planned for months',
-          status: 'approved',
-          submittedAt: new Date('2025-09-20'),
-          approvedAt: new Date('2025-09-22'),
-          approvedBy: 'Admin'
-        },
-        {
-          id: '2',
-          lecturerId: 'test-user',
-          lecturerName: 'John Doe',
-          lecturerEmail: 'john@example.com',
-          leaveType: 'Sick Leave',
-          startDate: '2025-09-25',
-          endDate: '2025-09-27',
-          reason: 'Medical appointment and recovery',
-          status: 'pending',
-          submittedAt: new Date('2025-09-24')
-        },
-        {
-          id: '3',
-          lecturerId: 'test-user',
-          lecturerName: 'John Doe',
-          lecturerEmail: 'john@example.com',
-          leaveType: 'Conference/Training Leave',
-          startDate: '2025-11-05',
-          endDate: '2025-11-07',
-          reason: 'Attending professional development conference',
-          status: 'rejected',
-          submittedAt: new Date('2025-09-15'),
-          rejectionReason: 'Conflicts with exam schedule'
+    console.log('🔍 LeaveRequestHistory useEffect triggered');
+    console.log('🔍 Firebase User:', firebaseUser);
+    console.log('🔍 Firebase UID:', firebaseUser?.uid);
+    console.log('🔍 Firebase Email:', firebaseUser?.email);
+    
+    const fetchLeaveRequests = async () => {
+      console.log('🚀 Starting fetchLeaveRequests...');
+      setLoading(true);
+      
+      try {
+        // Try to get lecturer ID from different sources
+        let actualLecturerId = null;
+        
+        // Method 1: Try Firebase UID first
+        if (firebaseUser?.uid) {
+          actualLecturerId = firebaseUser.uid;
+          console.log('🔄 Using Firebase UID:', actualLecturerId);
         }
-      ];
-      setLeaveRequests(mockRequests);
-      setLoading(false);
-      return;
-    }
+        
+        // Method 2: Try to get real lecturer ID from database using email
+        if (firebaseUser?.email) {
+          console.log('📧 Searching for lecturer with email:', firebaseUser.email);
+          try {
+            const userQuery = query(
+              collection(db, 'users'), 
+              where('email', '==', firebaseUser.email),
+              where('role', '==', 'lecturer')
+            );
+            const userSnapshot = await getDocs(userQuery);
+            console.log('👤 User query results:', userSnapshot.size, 'documents found');
+            
+            if (!userSnapshot.empty) {
+              const lecturerDoc = userSnapshot.docs[0];
+              const lecturerInfo = lecturerDoc.data();
+              console.log('🎓 Lecturer info found:', lecturerInfo);
+              actualLecturerId = lecturerInfo.employeeId || lecturerInfo.id || actualLecturerId;
+              console.log('🎓 Using actual lecturer ID:', actualLecturerId);
+            }
+          } catch (error) {
+            console.error('❌ Error fetching lecturer info:', error);
+          }
+        }
+        
+        // Method 3: Try with hardcoded lecturer ID for debugging
+        if (!actualLecturerId) {
+          actualLecturerId = 'AT/NG/LEC/FT/01'; // Your known lecturer ID
+          console.log('🔧 Fallback to hardcoded lecturer ID:', actualLecturerId);
+        }
 
-    const fetchLeaveRequests = () => {
-      // Try a simpler query first
-      let q = query(
-        collection(db, 'leaveRequests'),
-        where('lecturerId', '==', firebaseUser.uid)
-      );
+        if (!actualLecturerId) {
+          console.log('❌ No lecturer ID available, showing empty state');
+          setLeaveRequests([]);
+          setLoading(false);
+          return;
+        }
 
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const requests: LeaveRequest[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          requests.push({
-            id: doc.id,
-            ...data,
-            submittedAt: data.submittedAt?.toDate() || new Date(),
-            approvedAt: data.approvedAt?.toDate() || undefined,
-          } as LeaveRequest);
+        // Now query leave requests with the lecturer ID
+        console.log('📋 Querying leave requests with lecturer ID:', actualLecturerId);
+        const leaveQuery = query(
+          collection(db, 'lecturerLeaveRequests'),
+          where('lecturerId', '==', actualLecturerId)
+        );
+
+        const unsubscribe = onSnapshot(leaveQuery, (querySnapshot) => {
+          console.log('📋 Leave requests snapshot received, found:', querySnapshot.size, 'documents');
+          const requests: LeaveRequest[] = [];
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            console.log('📄 Processing document:', doc.id, data);
+            requests.push({
+              id: doc.id,
+              ...data,
+              submittedAt: data.submittedAt?.toDate() || new Date(),
+              approvedAt: data.approvedAt?.toDate() || undefined,
+            } as LeaveRequest);
+          });
+          
+          // Sort manually instead of using orderBy
+          requests.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+          console.log('✅ Final processed requests:', requests);
+          
+          setLeaveRequests(requests);
+          setLoading(false);
+        }, (error) => {
+          console.error('❌ Error in onSnapshot:', error);
+          setLoading(false);
         });
-        
-        // Sort manually instead of using orderBy
-        requests.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
-        
-        setLeaveRequests(requests);
-        setLoading(false);
-      }, (error) => {
-        console.error('Error fetching leave requests:', error);
-        setLoading(false);
-      });
 
-      return unsubscribe;
+        return unsubscribe;
+      } catch (error) {
+        console.error('❌ Error in fetchLeaveRequests:', error);
+        setLoading(false);
+      }
     };
 
-    const unsubscribe = fetchLeaveRequests();
-    return () => unsubscribe();
-  }, [firebaseUser?.uid]);
+    fetchLeaveRequests();
+  }, [firebaseUser]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

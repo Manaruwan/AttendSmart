@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { BookOpen, TrendingUp, Calendar, Clock, Award, CheckCircle, Target } from 'lucide-react';
+import { BookOpen, TrendingUp, Calendar, Clock, Award, CheckCircle, Target, ExternalLink, Copy, MapPin } from 'lucide-react';
+import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
+import { DatabaseService } from '../../services/databaseService';
+import { ClassSchedule } from '../../types/firebaseTypes';
 
 // Mock data for student dashboard
 const myGrades = [
@@ -51,11 +54,48 @@ const recentAchievements = [
 
 const StudentDashboard: React.FC = () => {
   const [selectedTimeFrame, setSelectedTimeFrame] = useState('This Semester');
+  const [enrolledClasses, setEnrolledClasses] = useState<ClassSchedule[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { currentUser } = useFirebaseAuth();
 
   const totalGrade = Math.round(myGrades.reduce((sum, subject) => sum + subject.grade, 0) / myGrades.length);
   const currentAttendance = 89;
   const completedAssignments = 28;
   const totalAssignments = 32;
+
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'student') {
+      loadEnrolledClasses();
+    }
+  }, [currentUser]);
+
+  const loadEnrolledClasses = async () => {
+    if (!currentUser) return;
+    
+    setLoading(true);
+    try {
+      // Get all classes
+      const allClasses = await DatabaseService.getClasses();
+      
+      // Filter classes where student is enrolled (by classIds or batchId)
+      const studentData = currentUser as any;
+      const studentClasses = allClasses.filter(cls => 
+        studentData.classIds?.includes(cls.id) || 
+        studentData.batchId === cls.batchId
+      );
+      
+      setEnrolledClasses(studentClasses);
+    } catch (error) {
+      console.error('Error loading enrolled classes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyAttendanceLink = (link: string) => {
+    navigator.clipboard.writeText(link);
+    alert('Attendance link copied to clipboard!');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -175,6 +215,85 @@ const StudentDashboard: React.FC = () => {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+
+        {/* Attendance Links Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Quick Attendance</h3>
+            <div className="flex items-center space-x-2">
+              <MapPin className="h-5 w-5 text-blue-600" />
+              <span className="text-sm text-gray-600">Mark attendance for your classes</span>
+            </div>
+          </div>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-2 text-gray-600">Loading your classes...</p>
+            </div>
+          ) : enrolledClasses.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">No classes available for attendance marking</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {enrolledClasses.map((cls) => (
+                <div key={cls.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-medium text-gray-900">{cls.name}</h4>
+                      <p className="text-sm text-gray-600">{cls.subject}</p>
+                    </div>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      Active
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <span>{cls.schedule?.[0]?.dayOfWeek || 'Schedule TBA'}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-2" />
+                      <span>{cls.schedule?.[0]?.startTime || 'Time TBA'} - {cls.schedule?.[0]?.endTime || ''}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 mr-2" />
+                      <span>{cls.schedule?.[0]?.room || 'Room TBA'}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {cls.attendanceLink ? (
+                      <>
+                        <button
+                          onClick={() => window.open(cls.attendanceLink, '_blank')}
+                          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span>Mark Attendance</span>
+                        </button>
+                        <button
+                          onClick={() => copyAttendanceLink(cls.attendanceLink!)}
+                          className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
+                        >
+                          <Copy className="h-4 w-4" />
+                          <span>Copy Link</span>
+                        </button>
+                      </>
+                    ) : (
+                      <div className="text-center py-2">
+                        <span className="text-xs text-gray-500">Attendance link not available</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Second Charts Row */}

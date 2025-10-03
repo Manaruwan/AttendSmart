@@ -4,7 +4,7 @@ import {
   Home, Users, Calendar, BookOpen, FileText, 
   BarChart3, Settings, Bell, LogOut, 
   GraduationCap, UserCheck, ClipboardList,
-  DollarSign, TrendingUp, FileCheck
+  DollarSign, TrendingUp, FileCheck, Clock
 } from 'lucide-react';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 
@@ -18,10 +18,11 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { path: '/app/dashboard', icon: Home, label: 'Dashboard', roles: ['admin', 'student', 'lecturer', 'staff'] },
   { path: '/app/analytics', icon: BarChart3, label: 'Advanced Analytics', roles: ['admin'] },
+  { path: '/app/reports', icon: TrendingUp, label: 'Attendance Reports', roles: ['admin'] },
   { path: '/app/users', icon: Users, label: 'User Management', roles: ['admin'] },
   { path: '/app/classes', icon: GraduationCap, label: 'Class Management', roles: ['admin', 'lecturer'] },
   { path: '/app/assignments', icon: BookOpen, label: 'Assignment Management', roles: ['admin'] },
-  { path: '/app/reports', icon: TrendingUp, label: 'Attendance Reports', roles: ['admin'] },
+  { path: '/app/late-submissions', icon: Clock, label: 'Late Submissions', roles: ['admin'] },
   { path: '/app/admin-leave-requests', icon: FileCheck, label: 'Manage Leave Requests', roles: ['admin'] },
   { path: '/app/schedule', icon: Calendar, label: 'Schedule', roles: ['student', 'lecturer'] },
   { path: '/app/attendance', icon: UserCheck, label: 'Attendance', roles: ['admin', 'student', 'lecturer', 'staff'] },

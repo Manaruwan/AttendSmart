@@ -31,7 +31,7 @@ const LeaveStatusNotifications: React.FC = () => {
     if (!firebaseUser?.uid) return;
 
     const q = query(
-      collection(db, 'leaveRequests'),
+      collection(db, 'lecturerLeaveRequests'),
       where('lecturerId', '==', firebaseUser.uid),
       where('status', 'in', ['approved', 'rejected'])
     );

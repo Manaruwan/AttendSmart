@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Send, X, CheckCircle, AlertCircle, User, History } from 'lucide-react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 
@@ -144,8 +144,31 @@ const StaffLeaveRequestForm: React.FC<{ onViewHistory?: () => void }> = ({ onVie
     setIsSubmitting(true);
 
     try {
+      // Fetch staff data from database to get real staff ID
+      let actualStaffId = firebaseUser?.uid || 'demo-staff-' + Date.now();
+      
+      if (firebaseUser?.email) {
+        try {
+          const q = query(
+            collection(db, 'users'), 
+            where('email', '==', firebaseUser.email),
+            where('role', '==', 'staff')
+          );
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const staffDoc = querySnapshot.docs[0];
+            const staffInfo = staffDoc.data();
+            actualStaffId = staffInfo.employeeId || staffInfo.id || actualStaffId;
+            console.log('💼 Using actual staff ID:', actualStaffId);
+          }
+        } catch (error) {
+          console.error('Error fetching staff data:', error);
+        }
+      }
+      
       const leaveRequest: Omit<StaffLeaveRequest, 'id'> = {
-        staffId: firebaseUser?.uid || 'demo-user-' + Date.now(),
+        staffId: actualStaffId,
         staffName: formData.fullName,
         staffEmail: formData.email,
         department: formData.department,

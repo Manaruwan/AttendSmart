@@ -98,6 +98,8 @@ export interface ClassSchedule {
     endTime: string;
     room: string;
   }[];
+  attendanceLink?: string; // Auto-generated link for student attendance
+  attendanceLinkGeneratedAt?: Timestamp;
   isActive: boolean;
   semester: string;
   academicYear: string;
@@ -121,7 +123,7 @@ export interface Assignment {
   id?: string;
   title: string;
   description: string;
-  classId: string;
+  classId?: string; // Optional since we removed it from form
   batchId: string;
   lecturerId: string;
   fileUrl?: string;
@@ -129,10 +131,13 @@ export interface Assignment {
   fileSize?: number;
   fileType?: string;
   deadline: Timestamp;
+  timeLimit?: number; // Time limit in minutes for completing the assignment
+  issuedDate: Timestamp;
   maxMarks: number;
   instructions?: string;
   submissions: AssignmentSubmission[];
   isActive: boolean;
+  allowLateSubmission?: boolean; // Allow late submissions after deadline
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -156,6 +161,25 @@ export interface AssignmentSubmission {
   marks?: number;
   feedback?: string;
   isLate: boolean;
+}
+
+// Late Submission Request
+export interface LateSubmissionRequest {
+  id?: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  batchId: string;
+  reason: string;
+  requestedAt: Timestamp;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string; // Admin who reviewed
+  reviewedAt?: Timestamp;
+  adminNotes?: string;
+  originalDeadline: Timestamp;
+  newDeadline?: Timestamp; // If approved, new deadline
 }
 
 // Exams

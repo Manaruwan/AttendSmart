@@ -22,6 +22,8 @@ interface Class {
   semester: string;
   academic_year: string;
   description?: string;
+  attendanceLink?: string;
+  attendanceLinkGeneratedAt?: any;
 }
 
 interface Lecturer {
@@ -314,6 +316,9 @@ export const ClassManagement: React.FC = () => {
                 Enrollment
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Attendance Link
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -378,6 +383,36 @@ export const ClassManagement: React.FC = () => {
                       style={{ width: `${(cls.enrolled / cls.capacity) * 100}%` }}
                     ></div>
                   </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {(cls as any).attendanceLink ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          ✓ Link Generated
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText((cls as any).attendanceLink);
+                            alert('Attendance link copied to clipboard!');
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        >
+                          Copy Link
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => window.open((cls as any).attendanceLink, '_blank')}
+                        className="text-xs text-gray-600 hover:text-gray-800 underline"
+                      >
+                        Open Link
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500">
+                      Link auto-generated
+                    </div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">

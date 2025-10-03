@@ -9,9 +9,12 @@ import {
   Filter,
   History,
   Eye,
-  Users
+  Users,
+  Trash2,
+  Download,
+  Paperclip
 } from 'lucide-react';
-import { collection, getDocs, updateDoc, doc, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, deleteDoc, doc, orderBy, query } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useToasts } from '../../hooks/useToasts';
 import StudentHistoryView from './StudentHistoryView';
@@ -127,6 +130,32 @@ export const MitigationManagement: React.FC = () => {
     } catch (error) {
       console.error('Error updating request:', error);
       showError('Error', 'Failed to update request status');
+    }
+  };
+
+  const handleDeleteRequest = async (requestId: string) => {
+    if (!window.confirm('Are you sure you want to delete this mitigation request? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const requestRef = doc(db, 'mitigationRequests', requestId);
+      await deleteDoc(requestRef);
+
+      setRequests(prev => prev.filter(req => req.id !== requestId));
+      
+      showSuccess(
+        'Request Deleted', 
+        'Mitigation request has been permanently deleted'
+      );
+      
+      // Close the detail view if the deleted request was selected
+      if (selectedRequest?.id === requestId) {
+        setSelectedRequest(null);
+      }
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      showError('Error', 'Failed to delete request');
     }
   };
 
@@ -359,12 +388,21 @@ export const MitigationManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      Review
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => setSelectedRequest(request)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Review
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRequest(request.id)}
+                        className="text-red-600 hover:text-red-900"
+                        title="Delete Request"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -446,6 +484,38 @@ export const MitigationManagement: React.FC = () => {
                 </div>
               </div>
 
+              {/* Attachments Section */}
+              {selectedRequest.attachments && selectedRequest.attachments.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Attachments</h4>
+                  <div className="space-y-2">
+                    {selectedRequest.attachments.map((attachment, index) => {
+                      const fileName = attachment.split('/').pop()?.split('?')[0] || `Attachment ${index + 1}`;
+                      const cleanFileName = fileName.substring(fileName.indexOf('_', fileName.indexOf('_') + 1) + 1);
+                      
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center">
+                            <Paperclip className="w-4 h-4 text-gray-500 mr-2" />
+                            <span className="text-sm text-gray-700">{cleanFileName}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              // Open attachment in new tab for download
+                              window.open(attachment, '_blank');
+                            }}
+                            className="flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                          >
+                            <Download className="w-4 h-4 mr-1" />
+                            Download
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Admin Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -461,24 +531,34 @@ export const MitigationManagement: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              {selectedRequest.status === 'pending' && (
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => handleStatusUpdate(selectedRequest.id, 'approved')}
-                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
-                  >
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    Approve Request
-                  </button>
-                  <button
-                    onClick={() => handleStatusUpdate(selectedRequest.id, 'rejected')}
-                    className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
-                  >
-                    <XCircle className="w-5 h-5 mr-2" />
-                    Reject Request
-                  </button>
-                </div>
-              )}
+              <div className="flex space-x-4">
+                {selectedRequest.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleStatusUpdate(selectedRequest.id, 'approved')}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                    >
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      Approve Request
+                    </button>
+                    <button
+                      onClick={() => handleStatusUpdate(selectedRequest.id, 'rejected')}
+                      className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center justify-center"
+                    >
+                      <XCircle className="w-5 h-5 mr-2" />
+                      Reject Request
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => handleDeleteRequest(selectedRequest.id)}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center justify-center"
+                  title="Delete Request Permanently"
+                >
+                  <Trash2 className="w-5 h-5 mr-2" />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

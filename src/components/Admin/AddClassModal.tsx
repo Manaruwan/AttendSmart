@@ -29,7 +29,12 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
     },
     capacity: '',
     enrolledStudents: 0,
-    status: 'active'
+    status: 'active',
+    attendanceSettings: {
+      linkActiveMinutesBefore: 15,
+      linkActiveMinutesAfter: 30,
+      enableAutoActivation: true
+    }
   });
 
   const [loading, setLoading] = useState(false);
@@ -160,7 +165,12 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
         },
         capacity: '',
         enrolledStudents: 0,
-        status: 'active'
+        status: 'active',
+        attendanceSettings: {
+          linkActiveMinutesBefore: 15,
+          linkActiveMinutesAfter: 30,
+          enableAutoActivation: true
+        }
       });
 
       setTimeout(() => {
@@ -523,6 +533,127 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
               </div>
             </div>
           </div>
+
+          {/* Attendance Link Preview */}
+          {formData.className && formData.courseCode && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-3 flex items-center">
+                <Clock className="h-4 w-4 mr-2" />
+                Attendance Link Preview
+              </h4>
+              <div className="space-y-3">
+                <p className="text-sm text-blue-800">
+                  After creating this class, an attendance link will be generated automatically:
+                </p>
+                <div className="bg-white p-2 rounded border text-sm font-mono text-gray-600">
+                  {`${window.location.origin}/attendance/{class-id}/{timestamp}-{random}`}
+                </div>
+                
+                {/* Manual Attendance Link Settings */}
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                  <h5 className="text-sm font-medium text-green-800 mb-3">⏰ Attendance Link Timing Settings</h5>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">
+                        Enable Auto Activation
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.attendanceSettings.enableAutoActivation}
+                          onChange={(e) => setFormData({
+                            ...formData, 
+                            attendanceSettings: {
+                              ...formData.attendanceSettings,
+                              enableAutoActivation: e.target.checked
+                            }
+                          })}
+                          className="mr-2"
+                        />
+                        <span className="text-xs text-green-700">Auto activate link</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">
+                        Minutes Before Class
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="60"
+                        value={formData.attendanceSettings.linkActiveMinutesBefore}
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          attendanceSettings: {
+                            ...formData.attendanceSettings,
+                            linkActiveMinutesBefore: parseInt(e.target.value) || 0
+                          }
+                        })}
+                        className="w-full px-2 py-1 text-xs border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500"
+                        placeholder="15"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-green-700 mb-1">
+                        Minutes After Class Starts
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="120"
+                        value={formData.attendanceSettings.linkActiveMinutesAfter}
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          attendanceSettings: {
+                            ...formData.attendanceSettings,
+                            linkActiveMinutesAfter: parseInt(e.target.value) || 0
+                          }
+                        })}
+                        className="w-full px-2 py-1 text-xs border border-green-300 rounded focus:outline-none focus:ring-1 focus:ring-green-500"
+                        placeholder="30"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Preview */}
+                  {formData.schedule.day && formData.schedule.startTime && formData.schedule.endTime && formData.attendanceSettings.enableAutoActivation && (
+                    <div className="bg-white p-3 rounded border">
+                      <h6 className="text-xs font-medium text-green-800 mb-2">📋 Live Preview:</h6>
+                      <div className="text-xs text-green-700 space-y-1">
+                        <p>📅 <strong>Every {formData.schedule.day}</strong></p>
+                        <p>🕐 <strong>Class Time:</strong> {formData.schedule.startTime} - {formData.schedule.endTime}</p>
+                        <p>✅ <strong>Link Active:</strong> {(() => {
+                          const start = new Date(`2000-01-01T${formData.schedule.startTime}`);
+                          start.setMinutes(start.getMinutes() - formData.attendanceSettings.linkActiveMinutesBefore);
+                          const activeEnd = new Date(`2000-01-01T${formData.schedule.startTime}`);
+                          activeEnd.setMinutes(activeEnd.getMinutes() + formData.attendanceSettings.linkActiveMinutesAfter);
+                          return `${start.toTimeString().slice(0,5)} to ${activeEnd.toTimeString().slice(0,5)}`;
+                        })()} ({formData.attendanceSettings.linkActiveMinutesBefore + formData.attendanceSettings.linkActiveMinutesAfter} minutes total)</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!formData.attendanceSettings.enableAutoActivation && (
+                    <div className="bg-yellow-50 p-2 rounded border border-yellow-200">
+                      <p className="text-xs text-yellow-700">
+                        ⚠️ Auto activation disabled. Attendance link will be always active.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                <p className="text-xs text-blue-600">
+                  Students will use this link to mark their attendance for "{formData.className} ({formData.courseCode})"
+                  {formData.schedule.day && formData.schedule.startTime && 
+                    ` during scheduled class times on ${formData.schedule.day}s`
+                  }
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Messages */}
           {error && (

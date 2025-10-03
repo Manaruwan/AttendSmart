@@ -28,6 +28,11 @@ export const assignmentService = {
 
       const docRef = await addDoc(collection(db, 'assignments'), assignmentData);
       
+      // Auto-assign to students in the selected batch
+      if (assignment.batchId) {
+        await this.assignToStudentsInBatch(docRef.id, assignment.batchId);
+      }
+      
       // Log assignment creation for admin tracking
       console.log(`✅ Assignment created: ${assignment.title} (ID: ${docRef.id})`);
       
@@ -35,6 +40,47 @@ export const assignmentService = {
     } catch (error) {
       console.error('Error creating assignment:', error);
       throw new Error('Failed to create assignment');
+    }
+  },
+
+  // Helper function to assign assignment to all students in a batch
+  async assignToStudentsInBatch(assignmentId: string, batchId: string): Promise<void> {
+    try {
+      // Get all students in the batch
+      const studentsQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'student'),
+        where('batchId', '==', batchId)
+      );
+      
+      const studentsSnapshot = await getDocs(studentsQuery);
+      const students = studentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
+      console.log(`Found ${students.length} students in batch ${batchId}`);
+      
+      // Create assignment entries for each student
+      const assignmentPromises = students.map(student => 
+        addDoc(collection(db, 'studentAssignments'), {
+          assignmentId: assignmentId,
+          studentId: student.id,
+          studentName: student.fullName || `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+          studentEmail: student.email || '',
+          batchId: batchId,
+          status: 'assigned', // assigned, submitted, graded
+          submittedAt: null,
+          submissionUrl: null,
+          grade: null,
+          feedback: null,
+          createdAt: Timestamp.now()
+        })
+      );
+      
+      await Promise.all(assignmentPromises);
+      console.log(`✅ Assignment ${assignmentId} assigned to ${students.length} students`);
+      
+    } catch (error) {
+      console.error('Error assigning to students:', error);
+      throw new Error('Failed to assign assignment to students');
     }
   },
 
@@ -52,6 +98,27 @@ export const assignmentService = {
     } catch (error) {
       console.error('Error fetching assignments:', error);
       throw new Error('Failed to fetch assignments');
+    }
+  },
+
+  // Get students assigned to a specific assignment
+  async getAssignedStudents(assignmentId: string): Promise<any[]> {
+    try {
+      const querySnapshot = await getDocs(
+        query(
+          collection(db, 'studentAssignments'),
+          where('assignmentId', '==', assignmentId),
+          orderBy('createdAt', 'desc')
+        )
+      );
+      
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('Error fetching assigned students:', error);
+      throw new Error('Failed to fetch assigned students');
     }
   },
 
@@ -221,6 +288,28 @@ export const assignmentService = {
     } catch (error) {
       console.error('Error updating submission:', error);
       throw new Error('Failed to update submission');
+    }
+  },
+
+  // Get submissions for a specific assignment
+  async getAssignmentSubmissions(assignmentId: string): Promise<any[]> {
+    try {
+      const submissionsQuery = query(
+        collection(db, 'studentAssignments'),
+        where('assignmentId', '==', assignmentId)
+      );
+      
+      const submissionsSnapshot = await getDocs(submissionsQuery);
+      const submissions = submissionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      console.log(`Found ${submissions.length} submissions for assignment ${assignmentId}`);
+      return submissions;
+    } catch (error) {
+      console.error('Error fetching assignment submissions:', error);
+      throw new Error('Failed to fetch assignment submissions');
     }
   }
 };

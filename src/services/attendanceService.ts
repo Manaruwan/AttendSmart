@@ -337,4 +337,139 @@ export class AttendanceService {
       );
     });
   }
+
+  // Generate unique attendance link for a class
+  static generateAttendanceLink(classId: string): string {
+    const baseUrl = window.location.origin;
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    return `${baseUrl}/attendance/${classId}/${timestamp}-${randomString}`;
+  }
+
+  // Validate if student is in correct location
+  static validateLocation(
+    studentLocation: {lat: number, lng: number}, 
+    allowedLocation: {lat: number, lng: number}, 
+    radiusMeters: number = 100
+  ): boolean {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = studentLocation.lat * Math.PI/180;
+    const φ2 = allowedLocation.lat * Math.PI/180;
+    const Δφ = (allowedLocation.lat - studentLocation.lat) * Math.PI/180;
+    const Δλ = (allowedLocation.lng - studentLocation.lng) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    const distance = R * c; // Distance in meters
+    return distance <= radiusMeters;
+  }
+
+  // Validate face match using face descriptors
+  static async validateFace(
+    capturedDescriptor: number[], 
+    storedDescriptor: number[], 
+    threshold: number = 0.6
+  ): Promise<boolean> {
+    if (!capturedDescriptor || !storedDescriptor || capturedDescriptor.length !== storedDescriptor.length) {
+      return false;
+    }
+
+    let sum = 0;
+    for (let i = 0; i < capturedDescriptor.length; i++) {
+      sum += Math.pow(capturedDescriptor[i] - storedDescriptor[i], 2);
+    }
+    const distance = Math.sqrt(sum);
+    
+    return distance < threshold;
+  }
+
+  // Mark attendance with comprehensive verification
+  static async markAttendanceWithVerification(
+    studentId: string, 
+    classId: string, 
+    studentLocation: {lat: number, lng: number},
+    faceDescriptor: number[],
+    capturedImage?: string
+  ): Promise<{success: boolean, message: string, attendanceId?: string}> {
+    try {
+      // Get student data
+      const studentDoc = await getDoc(doc(db, 'users', studentId));
+      if (!studentDoc.exists()) {
+        return { success: false, message: 'Student not found' };
+      }
+      
+      const studentData = studentDoc.data();
+      
+      // Get class data
+      const classDoc = await getDoc(doc(db, 'classes', classId));
+      if (!classDoc.exists()) {
+        return { success: false, message: 'Class not found' };
+      }
+      
+      const classData = classDoc.data();
+      
+      // Check if student is enrolled in this class/batch
+      if (!studentData.classIds?.includes(classId) && studentData.batchId !== classData.batchId) {
+        return { success: false, message: 'Student not enrolled in this class' };
+      }
+
+      // Validate location
+      const locationVerified = studentData.location ? 
+        this.validateLocation(studentLocation, studentData.location, 100) : true;
+      
+      if (!locationVerified) {
+        return { success: false, message: 'You are not in the correct location to mark attendance' };
+      }
+
+      // Validate face
+      const faceVerified = studentData.faceDescriptor ? 
+        await this.validateFace(faceDescriptor, studentData.faceDescriptor) : true;
+      
+      if (!faceVerified) {
+        return { success: false, message: 'Face verification failed' };
+      }
+
+      // Check if attendance already marked today
+      const today = new Date().toISOString().split('T')[0];
+      const attendanceId = `${studentId}_${classId}_${today}`;
+      
+      const existingDoc = await getDoc(doc(db, 'attendance', attendanceId));
+      if (existingDoc.exists()) {
+        return { success: false, message: 'Attendance already marked for today' };
+      }
+
+      // Create attendance record
+      const attendanceRecord: AttendanceRecord = {
+        studentId,
+        classId,
+        date: today,
+        time: Timestamp.now(),
+        locationVerified,
+        faceVerified,
+        status: 'present',
+        location: studentLocation,
+        faceConfidence: faceVerified ? 0.9 : 0.3,
+        capturedImage,
+        createdAt: Timestamp.now()
+      };
+
+      await setDoc(doc(db, 'attendance', attendanceId), attendanceRecord);
+
+      return { 
+        success: true, 
+        message: 'Attendance marked successfully', 
+        attendanceId 
+      };
+
+    } catch (error) {
+      console.error('Mark attendance error:', error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Failed to mark attendance' 
+      };
+    }
+  }
 }

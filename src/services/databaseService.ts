@@ -36,9 +36,18 @@ export class DatabaseService {
   static async createClass(classData: Omit<ClassSchedule, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     try {
       const docRef = doc(collection(db, 'classes'));
+      
+      // Generate attendance link
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://attendsmart.com';
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const attendanceLink = `${baseUrl}/attendance/${docRef.id}/${timestamp}-${randomString}`;
+      
       const newClass: ClassSchedule = {
         ...classData,
         id: docRef.id,
+        attendanceLink,
+        attendanceLinkGeneratedAt: serverTimestamp() as Timestamp,
         createdAt: serverTimestamp() as Timestamp,
         updatedAt: serverTimestamp() as Timestamp
       };
@@ -101,6 +110,16 @@ export class DatabaseService {
     } catch (error: any) {
       console.error('Get batches error:', error);
       throw new Error(error.message || 'Failed to fetch batches');
+    }
+  }
+
+  static async getBatchById(batchId: string): Promise<Batch | null> {
+    try {
+      const batchDoc = await getDoc(doc(db, 'batches', batchId));
+      return batchDoc.exists() ? batchDoc.data() as Batch : null;
+    } catch (error: any) {
+      console.error('Get batch by ID error:', error);
+      return null;
     }
   }
 

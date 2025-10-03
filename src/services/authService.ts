@@ -191,6 +191,17 @@ export class AuthService {
     }
   }
 
+  // Get user by ID
+  static async getUserById(userId: string): Promise<BaseUser | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      return userDoc.exists() ? userDoc.data() as BaseUser : null;
+    } catch (error: any) {
+      console.error('Error fetching user by ID:', error);
+      return null;
+    }
+  }
+
   // Delete user
   static async deleteUser(userId: string): Promise<void> {
     try {

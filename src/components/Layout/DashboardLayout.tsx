@@ -8,9 +8,9 @@ export const DashboardLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
+    <div className="min-h-screen bg-gray-50">
+      {/* Desktop Sidebar - Fixed */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64">
         <Sidebar />
       </div>
 
@@ -27,15 +27,17 @@ export const DashboardLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-auto">
-          <div className="p-6">
-            <Outlet />
-          </div>
-        </main>
-        <LeaveStatusNotifications />
+      {/* Main Content - With left margin for fixed sidebar */}
+      <div className="lg:pl-64">
+        <div className="flex flex-col">
+          <Header onMenuClick={() => setSidebarOpen(true)} />
+          <main className="flex-1">
+            <div className="p-6">
+              <Outlet />
+            </div>
+          </main>
+          <LeaveStatusNotifications />
+        </div>
       </div>
     </div>
   );
