@@ -74,6 +74,33 @@ export class AttendanceService {
     }
   }
 
+  // Simple attendance marking with success/error response
+  static async markAttendanceSimple(data: {
+    studentId: string;
+    classId: string;
+    faceVerified: boolean;
+    locationVerified: boolean;
+    faceConfidence?: number;
+    location?: { lat: number; lng: number };
+    capturedImage?: string;
+    markedBy?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; message: string; attendanceId?: string }> {
+    try {
+      const attendanceRecord = await this.markAttendance(data);
+      return {
+        success: true,
+        message: 'Attendance marked successfully',
+        attendanceId: attendanceRecord.id
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to mark attendance'
+      };
+    }
+  }
+
   // Upload captured face image to Firebase Storage
   static async uploadFaceImage(
     studentId: string, 
@@ -469,6 +496,219 @@ export class AttendanceService {
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to mark attendance' 
+      };
+    }
+  }
+
+  // Verify if student has access to attendance link for specific class
+  static async verifyAttendanceAccess(studentId: string, classId: string): Promise<{
+    hasAccess: boolean;
+    message: string;
+    classInfo?: any;
+  }> {
+    try {
+      // Get class information
+      const classDoc = await getDoc(doc(db, 'classes', classId));
+      if (!classDoc.exists()) {
+        return {
+          hasAccess: false,
+          message: 'Class not found'
+        };
+      }
+
+      const classData = classDoc.data();
+      const batchId = classData.batchId;
+
+      if (!batchId) {
+        return {
+          hasAccess: false,
+          message: 'Class is not assigned to any batch'
+        };
+      }
+
+      // Get student information
+      const studentDoc = await getDoc(doc(db, 'users', studentId));
+      if (!studentDoc.exists()) {
+        return {
+          hasAccess: false,
+          message: 'Student not found'
+        };
+      }
+
+      const studentData = studentDoc.data();
+
+      // Check if student belongs to the same batch
+      if (studentData.batchId !== batchId) {
+        return {
+          hasAccess: false,
+          message: 'You do not have access to this class. This class is for a different batch.'
+        };
+      }
+
+      // Check if student role is 'student'
+      if (studentData.role !== 'student') {
+        return {
+          hasAccess: false,
+          message: 'Only students can mark attendance'
+        };
+      }
+
+      return {
+        hasAccess: true,
+        message: 'Access granted',
+        classInfo: {
+          className: classData.className,
+          courseCode: classData.courseCode,
+          batchId: batchId,
+          instructor: classData.instructor
+        }
+      };
+
+    } catch (error) {
+      console.error('Verify attendance access error:', error);
+      return {
+        hasAccess: false,
+        message: 'Error verifying access'
+      };
+    }
+  }
+
+  // Get student's batch information
+  static async getStudentBatch(studentId: string): Promise<{
+    success: boolean;
+    batchId?: string;
+    batchInfo?: any;
+    message: string;
+  }> {
+    try {
+      const studentDoc = await getDoc(doc(db, 'users', studentId));
+      if (!studentDoc.exists()) {
+        return {
+          success: false,
+          message: 'Student not found'
+        };
+      }
+
+      const studentData = studentDoc.data();
+      const batchId = studentData.batchId;
+
+      if (!batchId) {
+        return {
+          success: false,
+          message: 'Student is not assigned to any batch'
+        };
+      }
+
+      // Get batch information
+      const batchDoc = await getDoc(doc(db, 'batches', batchId));
+      if (!batchDoc.exists()) {
+        return {
+          success: false,
+          message: 'Batch not found'
+        };
+      }
+
+      return {
+        success: true,
+        batchId: batchId,
+        batchInfo: batchDoc.data(),
+        message: 'Batch information retrieved successfully'
+      };
+
+    } catch (error) {
+      console.error('Get student batch error:', error);
+      return {
+        success: false,
+        message: 'Error retrieving batch information'
+      };
+    }
+  }
+
+  // Check if attendance link is currently active for a class
+  static async checkAttendanceLinkStatus(classId: string): Promise<{
+    isActive: boolean;
+    message: string;
+    timeInfo?: {
+      classStartTime: string;
+      currentTime: string;
+      activeFrom: string;
+      activeTo: string;
+    };
+  }> {
+    try {
+      const classDoc = await getDoc(doc(db, 'classes', classId));
+      if (!classDoc.exists()) {
+        return {
+          isActive: false,
+          message: 'Class not found'
+        };
+      }
+
+      const classData = classDoc.data();
+      const schedule = classData.schedule;
+      const attendanceSettings = classData.attendanceSettings || {
+        linkActiveMinutesBefore: 15,
+        linkActiveMinutesAfter: 30,
+        enableAutoActivation: true
+      };
+
+      if (!attendanceSettings.enableAutoActivation) {
+        return {
+          isActive: false,
+          message: 'Attendance link auto-activation is disabled for this class'
+        };
+      }
+
+      if (!schedule || !schedule.day || !schedule.startTime) {
+        return {
+          isActive: false,
+          message: 'Class schedule is not properly configured'
+        };
+      }
+
+      const now = new Date();
+      const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
+      
+      // Check if today is the class day
+      if (currentDay !== schedule.day) {
+        return {
+          isActive: false,
+          message: `This class is scheduled for ${schedule.day}, not today (${currentDay})`
+        };
+      }
+
+      // Parse class start time
+      const [hours, minutes] = schedule.startTime.split(':').map(Number);
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+
+      // Calculate active time window
+      const activeFromTime = new Date(classStartTime);
+      activeFromTime.setMinutes(activeFromTime.getMinutes() - attendanceSettings.linkActiveMinutesBefore);
+
+      const activeToTime = new Date(classStartTime);
+      activeToTime.setMinutes(activeToTime.getMinutes() + attendanceSettings.linkActiveMinutesAfter);
+
+      const isActive = now >= activeFromTime && now <= activeToTime;
+
+      return {
+        isActive,
+        message: isActive 
+          ? 'Attendance link is currently active' 
+          : `Attendance link is not active. Active from ${activeFromTime.toLocaleTimeString()} to ${activeToTime.toLocaleTimeString()}`,
+        timeInfo: {
+          classStartTime: classStartTime.toLocaleTimeString(),
+          currentTime: now.toLocaleTimeString(),
+          activeFrom: activeFromTime.toLocaleTimeString(),
+          activeTo: activeToTime.toLocaleTimeString()
+        }
+      };
+
+    } catch (error) {
+      console.error('Check attendance link status error:', error);
+      return {
+        isActive: false,
+        message: 'Error checking attendance link status'
       };
     }
   }

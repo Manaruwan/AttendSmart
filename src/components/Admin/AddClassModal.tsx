@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Plus } from 'lucide-react';
-import { collection, addDoc, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, Timestamp, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { AuthService } from '../../services/authService';
 
@@ -43,11 +43,35 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
   const [batches, setBatches] = useState<any[]>([]);
   const [lecturers, setLecturers] = useState<any[]>([]);
   const [showNewBatchForm, setShowNewBatchForm] = useState(false);
+  const [showFullLink, setShowFullLink] = useState(false);
   const [newBatchData, setNewBatchData] = useState({
     name: '',
     year: new Date().getFullYear(),
     department: ''
   });
+
+  // Function to generate masked attendance link
+  const generateMaskedLink = () => {
+    const baseUrl = window.location.origin;
+    const classId = 'cls_' + Math.random().toString(36).substr(2, 8);
+    const timestamp = Date.now();
+    const randomPart = Math.random().toString(36).substr(2, 10);
+    
+    const fullLink = `${baseUrl}/attendance/${classId}/${timestamp}-${randomPart}`;
+    
+    if (showFullLink) {
+      return fullLink;
+    } else {
+      // Show only first part and mask the rest
+      const parts = fullLink.split('/');
+      const maskedParts = parts.map((part, index) => {
+        if (index < 3) return part; // Keep protocol and domain
+        if (index === 3) return 'attendance';
+        return '●●●●●●●●'; // Mask the sensitive parts
+      });
+      return maskedParts.join('/');
+    }
+  };
 
   // Load batches and lecturers when component mounts
   useEffect(() => {
@@ -127,6 +151,88 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
     }
   };
 
+  // Function to add class to all students in a batch
+  const addClassToStudentTimetables = async (classId: string, batchId: string, classData: any) => {
+    try {
+      console.log(`🎯 Adding class ${classData.className} to students in batch ${batchId}`);
+      
+      // Get all students in the batch
+      const studentsQuery = query(
+        collection(db, 'users'),
+        where('role', '==', 'student'),
+        where('batchId', '==', batchId)
+      );
+      
+      const studentsSnapshot = await getDocs(studentsQuery);
+      console.log(`📚 Found ${studentsSnapshot.docs.length} students in batch ${batchId}`);
+      
+      if (studentsSnapshot.docs.length === 0) {
+        console.warn(`⚠️ No students found in batch ${batchId}`);
+        return;
+      }
+      
+      // Add class to each student's timetable
+      const updatePromises = studentsSnapshot.docs.map(async (studentDoc) => {
+        const studentId = studentDoc.id;
+        const studentData = studentDoc.data();
+        
+        console.log(`👨‍🎓 Processing student: ${studentData.email || studentData.name || studentId}`);
+        
+        // Get current timetable or create new one
+        const currentTimetable = studentData.timetable || [];
+        
+        // Check if class already exists in student's timetable
+        const existingClass = currentTimetable.find((entry: any) => entry.classId === classId);
+        if (existingClass) {
+          console.log(`⚠️ Class already exists in ${studentData.email}'s timetable`);
+          return;
+        }
+        
+        // Create timetable entry for this class
+        const timetableEntry = {
+          classId: classId,
+          className: classData.className,
+          courseCode: classData.courseCode,
+          instructor: classData.instructor,
+          day: classData.schedule.day,
+          startTime: classData.schedule.startTime,
+          endTime: classData.schedule.endTime,
+          room: classData.schedule.room,
+          department: classData.department,
+          semester: classData.semester,
+          year: classData.year,
+          attendanceLink: null, // Will be generated when needed
+          addedAt: Timestamp.now(),
+          batchId: batchId
+        };
+        
+        // Add to timetable
+        const updatedTimetable = [...currentTimetable, timetableEntry];
+        
+        // Update student document
+        await updateDoc(doc(db, 'users', studentId), {
+          timetable: updatedTimetable,
+          updatedAt: Timestamp.now()
+        });
+        
+        console.log(`✅ Added class to ${studentData.email || studentId}'s timetable`);
+      });
+      
+      await Promise.all(updatePromises);
+      console.log(`🎉 Successfully added class to ${studentsSnapshot.docs.length} students' timetables`);
+      
+      // Update class document with enrolled student count
+      await updateDoc(doc(db, 'classes', classId), {
+        enrolledStudents: studentsSnapshot.docs.length,
+        updatedAt: Timestamp.now()
+      });
+      
+    } catch (error) {
+      console.error('❌ Error adding class to student timetables:', error);
+      // Don't throw error to prevent class creation failure
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -142,7 +248,13 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
         updatedAt: new Date()
       };
 
-      await addDoc(collection(db, 'classes'), classData);
+      // Create the class
+      const classRef = await addDoc(collection(db, 'classes'), classData);
+      
+      // If a batch is selected, add this class to all students in that batch
+      if (formData.batchId) {
+        await addClassToStudentTimetables(classRef.id, formData.batchId, classData);
+      }
       
       setSuccess('Class created successfully!');
       
@@ -545,8 +657,25 @@ export const AddClassModal: React.FC<AddClassModalProps> = ({ isOpen, onClose, o
                 <p className="text-sm text-blue-800">
                   After creating this class, an attendance link will be generated automatically:
                 </p>
-                <div className="bg-white p-2 rounded border text-sm font-mono text-gray-600">
-                  {`${window.location.origin}/attendance/{class-id}/{timestamp}-{random}`}
+                <div className="bg-white p-3 rounded border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-gray-600">Attendance Link (Preview)</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowFullLink(!showFullLink)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      {showFullLink ? '🙈 Hide Link' : '👁️ Show Link'}
+                    </button>
+                  </div>
+                  <div className="font-mono text-sm text-gray-800 bg-gray-50 p-2 rounded border-l-4 border-blue-400">
+                    {generateMaskedLink()}
+                  </div>
+                  {!showFullLink && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      🔒 Link details are masked for security. Click "Show Link" to reveal (admin only).
+                    </p>
+                  )}
                 </div>
                 
                 {/* Manual Attendance Link Settings */}

@@ -558,4 +558,81 @@ export class DatabaseService {
       throw new Error(error.message || `Failed to delete ${collection}`);
     }
   }
+
+  // ==================== BATCH ASSIGNMENT ====================
+  
+  static async assignStudentToBatch(studentId: string, batchId: string): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'users', studentId), {
+        batchId: batchId,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error: any) {
+      console.error('Assign student to batch error:', error);
+      throw new Error(error.message || 'Failed to assign student to batch');
+    }
+  }
+
+  static async getStudentsByBatch(batchId: string): Promise<any[]> {
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('role', '==', 'student'),
+        where('batchId', '==', batchId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error: any) {
+      console.error('Get students by batch error:', error);
+      throw new Error(error.message || 'Failed to fetch students');
+    }
+  }
+
+  static async createTestBatchAndStudent(): Promise<{ batchId: string; studentId: string }> {
+    try {
+      // Create test batch
+      const batchDocRef = doc(collection(db, 'batches'));
+      const testBatch = {
+        id: batchDocRef.id,
+        name: 'SE-2024-01',
+        year: 2024,
+        department: 'Software Engineering',
+        status: 'active',
+        createdAt: serverTimestamp()
+      };
+      
+      await setDoc(batchDocRef, testBatch);
+      
+      // Find student by email and assign batch
+      const studentQuery = query(
+        collection(db, 'users'),
+        where('email', '==', 'uvindu.manaruwan@gmail.com')
+      );
+      
+      const studentSnapshot = await getDocs(studentQuery);
+      
+      if (studentSnapshot.empty) {
+        throw new Error('Student not found');
+      }
+      
+      const studentDoc = studentSnapshot.docs[0];
+      const studentId = studentDoc.id;
+      
+      // Assign batch to student
+      await this.assignStudentToBatch(studentId, batchDocRef.id);
+      
+      return {
+        batchId: batchDocRef.id,
+        studentId: studentId
+      };
+      
+    } catch (error: any) {
+      console.error('Create test batch and student error:', error);
+      throw new Error(error.message || 'Failed to create test batch and assign student');
+    }
+  }
 }

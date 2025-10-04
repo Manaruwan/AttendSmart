@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Settings, Save, Upload, Download, Bell, Shield, Database, Wifi, Mail, Key } from 'lucide-react';
+import { Settings, Save, Upload, Download, Bell, Shield, Database, Wifi, Mail, Key, Play, CheckCircle } from 'lucide-react';
+import { DatabaseService } from '../../services/databaseService';
 
 interface SystemSettings {
   general: {
@@ -35,6 +36,9 @@ interface SystemSettings {
 
 export const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('general');
+  const [testSetupLoading, setTestSetupLoading] = useState(false);
+  const [testSetupStatus, setTestSetupStatus] = useState('');
+  
   const [settings, setSettings] = useState<SystemSettings>({
     general: {
       systemName: 'Smart Attendance System',
@@ -81,6 +85,28 @@ export const AdminSettings: React.FC = () => {
     // Here you would save to backend
     console.log('Saving settings:', settings);
     alert('Settings saved successfully!');
+  };
+
+  const setupTestBatchAndStudent = async () => {
+    try {
+      setTestSetupLoading(true);
+      setTestSetupStatus('Creating test batch and assigning student...');
+      
+      const result = await DatabaseService.createTestBatchAndStudent();
+      
+      setTestSetupStatus(`✅ Success! Created batch: ${result.batchId}, Assigned student: ${result.studentId}`);
+      
+      // Auto-clear status after 5 seconds
+      setTimeout(() => {
+        setTestSetupStatus('');
+      }, 5000);
+      
+    } catch (error: any) {
+      setTestSetupStatus(`❌ Error: ${error.message}`);
+      console.error('Test setup error:', error);
+    } finally {
+      setTestSetupLoading(false);
+    }
   };
 
   const exportSettings = () => {
@@ -446,6 +472,27 @@ export const AdminSettings: React.FC = () => {
             </p>
           </div>
           <div className="flex space-x-3">
+            <button
+              onClick={setupTestBatchAndStudent}
+              disabled={testSetupLoading}
+              className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+                testSetupLoading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-purple-600 hover:bg-purple-700'
+              } text-white`}
+            >
+              {testSetupLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Setting up...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Quick Setup
+                </>
+              )}
+            </button>
             <label className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer">
               <Upload className="mr-2 h-4 w-4" />
               Import
@@ -473,6 +520,22 @@ export const AdminSettings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Test Setup Status */}
+      {testSetupStatus && (
+        <div className={`p-4 rounded-lg border ${
+          testSetupStatus.includes('✅') 
+            ? 'bg-green-50 border-green-200 text-green-800' 
+            : testSetupStatus.includes('❌')
+            ? 'bg-red-50 border-red-200 text-red-800'
+            : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          <div className="flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2" />
+            <span className="font-medium">{testSetupStatus}</span>
+          </div>
+        </div>
+      )}
 
       {/* Settings Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

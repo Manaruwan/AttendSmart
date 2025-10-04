@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit2, Trash2, Search, Filter, UserCheck, UserX, Download, Eye } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, Search, Filter, UserCheck, UserX, Download, Eye, UserPlus } from 'lucide-react';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { DatabaseService } from '../../services/databaseService';
@@ -42,6 +42,11 @@ export const UserManagement = () => {
     userId: '',
     userName: ''
   });
+
+  const [showBatchAssignModal, setShowBatchAssignModal] = useState(false);
+  const [selectedUserForBatch, setSelectedUserForBatch] = useState<User | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+  const [batchAssignLoading, setBatchAssignLoading] = useState(false);
 
   // Utility function to get batch name from ID
   const getBatchName = (batchId: string) => {
@@ -232,6 +237,38 @@ export const UserManagement = () => {
       userId: user.id,
       userName: `${user.firstName} ${user.lastName}`
     });
+  };
+
+  const handleAssignBatch = (user: User) => {
+    setSelectedUserForBatch(user);
+    setSelectedBatchId(user.batchId || '');
+    setShowBatchAssignModal(true);
+  };
+
+  const submitBatchAssignment = async () => {
+    if (!selectedUserForBatch || !selectedBatchId) return;
+    
+    try {
+      setBatchAssignLoading(true);
+      await DatabaseService.assignStudentToBatch(selectedUserForBatch.id, selectedBatchId);
+      
+      // Update local state
+      setUsers(prev => prev.map(user => 
+        user.id === selectedUserForBatch.id 
+          ? { ...user, batchId: selectedBatchId }
+          : user
+      ));
+      
+      setShowBatchAssignModal(false);
+      setSelectedUserForBatch(null);
+      setSelectedBatchId('');
+      alert('Batch assigned successfully!');
+    } catch (error) {
+      console.error('Error assigning batch:', error);
+      alert('Failed to assign batch. Please try again.');
+    } finally {
+      setBatchAssignLoading(false);
+    }
   };
 
   const cancelDelete = () => {
@@ -490,6 +527,15 @@ export const UserManagement = () => {
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
+                      {user.role === 'student' && (
+                        <button 
+                          className="text-purple-600 hover:text-purple-900"
+                          onClick={() => handleAssignBatch(user)}
+                          title="Assign to Batch"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </button>
+                      )}
                       <button 
                         className={`${user.isActive ? 'text-orange-600 hover:text-orange-900' : 'text-green-600 hover:text-green-900'}`}
                         onClick={() => handleToggleUserStatus(user.id, user.isActive)}
@@ -745,6 +791,64 @@ export const UserManagement = () => {
                   Edit User
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Assignment Modal */}
+      {showBatchAssignModal && selectedUserForBatch && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Assign Batch to {selectedUserForBatch.firstName} {selectedUserForBatch.lastName}
+              </h3>
+            </div>
+            
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Batch
+                </label>
+                <select
+                  value={selectedBatchId}
+                  onChange={(e) => setSelectedBatchId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a batch...</option>
+                  {batches.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.name} ({batch.department} - {batch.year})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="text-sm text-gray-600 mb-4">
+                Current batch: {selectedUserForBatch.batchId ? getBatchName(selectedUserForBatch.batchId) : 'No batch assigned'}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowBatchAssignModal(false);
+                  setSelectedUserForBatch(null);
+                  setSelectedBatchId('');
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={batchAssignLoading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitBatchAssignment}
+                disabled={!selectedBatchId || batchAssignLoading}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {batchAssignLoading ? 'Assigning...' : 'Assign Batch'}
+              </button>
             </div>
           </div>
         </div>

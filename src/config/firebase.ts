@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getMessaging } from 'firebase/messaging';
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 // Firebase configuration using environment variables
 export const firebaseConfig = {
@@ -14,19 +14,6 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:723575726133:web:e8eab1e314ad38dc3f117c",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-0ED4KZRL64"
 };
-
-// EXAMPLE of how it should look (with your actual values):
-/*
-export const firebaseConfig = {
-  apiKey: "AIzaSyB0123456789abcdefghijklmnopqrstuvwxyz",
-  authDomain: "attendance-system-12345.firebaseapp.com",
-  projectId: "attendance-system-12345",
-  storageBucket: "attendance-system-12345.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef123456789012345",
-  measurementId: "G-ABCDEF1234"
-};
-*/
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -40,10 +27,28 @@ export const db = getFirestore(app);
 // Initialize Cloud Storage and get a reference to the service
 export const storage = getStorage(app);
 
-// Initialize Firebase Cloud Messaging and get a reference to the service
-export const messaging = getMessaging(app);
+// Initialize Firebase Cloud Messaging (only if supported)
+let messaging: any = null;
+if (typeof window !== 'undefined') {
+  isSupported().then((supported) => {
+    if (supported) {
+      messaging = getMessaging(app);
+    }
+  });
+}
+export { messaging };
 
-// Google Auth Provider
+// Google Auth Provider with optimized settings
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+// Connect to emulators in development
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+  connectAuthEmulator(auth, 'http://localhost:9099');
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectStorageEmulator(storage, 'localhost', 9199);
+}
 
 export default app;

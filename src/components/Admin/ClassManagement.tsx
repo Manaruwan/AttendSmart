@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, Plus, Edit2, Trash2, Search, BookOpen, User } from 'lucide-react';
 import { AddClassModal } from './AddClassModal';
 import { EditClassModal } from './EditClassModal';
+import { BulkClassCreationModal } from './BulkClassCreationModal';
 import { doc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { DatabaseService } from '../../services/databaseService';
 
 interface Class {
   id: string;
@@ -11,6 +13,7 @@ interface Class {
   code: string;
   lecturer: string;
   lecturerId: string;
+  batchId?: string;
   room: string;
   building: string;
   day: string;
@@ -33,25 +36,18 @@ interface Lecturer {
   department: string;
 }
 
-interface Room {
-  id: string;
-  name: string;
-  building: string;
-  capacity: number;
-  type: 'lecture' | 'lab' | 'seminar';
-  equipment: string[];
-}
-
 export const ClassManagement: React.FC = () => {
 
   const [classes, setClasses] = useState<Class[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDay, setFilterDay] = useState<string>('all');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
+  const [filterBatch, setFilterBatch] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   const fetchLecturers = async () => {
     try {
@@ -92,7 +88,13 @@ export const ClassManagement: React.FC = () => {
 
   const fetchClasses = async () => {
     try {
-      const snapshot = await getDocs(collection(db, 'classes'));
+      const [snapshot, batchData] = await Promise.all([
+        getDocs(collection(db, 'classes')),
+        DatabaseService.getBatches()
+      ]);
+      
+      setBatches(batchData);
+      
       const classList = snapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
@@ -101,6 +103,7 @@ export const ClassManagement: React.FC = () => {
           code: data.courseCode || data.code || '',
           lecturer: data.instructor || data.lecturer || '',
           lecturerId: data.lecturerId || '',
+          batchId: data.batchId || '',
           room: data.schedule?.room || data.room || '',
           building: data.building || '',
           day: data.schedule?.day || data.day || '',
@@ -111,7 +114,9 @@ export const ClassManagement: React.FC = () => {
           department: data.department || '',
           semester: data.semester || '',
           academic_year: data.year || data.academic_year || '',
-          description: data.description || ''
+          description: data.description || '',
+          attendanceLink: data.attendanceLink || '',
+          attendanceLinkGeneratedAt: data.attendanceLinkGeneratedAt
         };
       });
       setClasses(classList);
@@ -176,22 +181,6 @@ export const ClassManagement: React.FC = () => {
     return colors[employmentType as keyof typeof colors] || 'text-gray-700 bg-gray-100 border border-gray-200';
   };
 
-  const getLecturerInfo = (lecturerName: string) => {
-    const lecturer = lecturers.find(l => l.name === lecturerName);
-    if (lecturer) {
-      return {
-        name: lecturer.name,
-        employmentType: lecturer.employmentType,
-        department: lecturer.department
-      };
-    }
-    return {
-      name: lecturerName,
-      employmentType: 'Not specified',
-      department: 'No Department'
-    };
-  };
-
   const cancelDelete = () => {
     setDeleteConfirm({ show: false, classId: '', className: '' });
   };
@@ -203,9 +192,17 @@ export const ClassManagement: React.FC = () => {
     
     const matchesDay = filterDay === 'all' || cls.day === filterDay;
     const matchesDepartment = filterDepartment === 'all' || cls.department === filterDepartment;
+    const matchesBatch = filterBatch === 'all' || cls.batchId === filterBatch;
     
-    return matchesSearch && matchesDay && matchesDepartment;
+    return matchesSearch && matchesDay && matchesDepartment && matchesBatch;
   });
+
+  // Utility function to get batch name
+  const getBatchName = (batchId: string | undefined) => {
+    if (!batchId) return 'No Batch';
+    const batch = batches.find(b => b.id === batchId);
+    return batch?.name || 'No Batch';
+  };
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const timeSlots = [
@@ -273,6 +270,10 @@ export const ClassManagement: React.FC = () => {
                           <div className="text-xs text-gray-600">
                             {cls.lecturer} ({getLecturerEmploymentType(cls.lecturer)})
                           </div>
+                          <div className="text-xs text-gray-600 flex items-center">
+                            <Users className="h-3 w-3 mr-1" />
+                            {getBatchName(cls.batchId)}
+                          </div>
                           <div className="text-xs text-gray-600 flex items-center mt-1">
                             <MapPin className="h-3 w-3 mr-1" />
                             {cls.room}
@@ -305,6 +306,9 @@ export const ClassManagement: React.FC = () => {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Lecturer
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Batch
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Schedule
@@ -354,6 +358,14 @@ export const ClassManagement: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 text-gray-400 mr-2" />
+                    <div className="text-sm font-medium text-gray-900">
+                      {getBatchName(cls.batchId)}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900 flex items-center">
                     <Calendar className="h-4 w-4 text-gray-400 mr-2" />
                     {cls.day}
@@ -391,22 +403,38 @@ export const ClassManagement: React.FC = () => {
                         <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
                           ✓ Link Generated
                         </div>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText((cls as any).attendanceLink);
-                            alert('Attendance link copied to clipboard!');
-                          }}
-                          className="text-xs text-blue-600 hover:text-blue-800 underline"
-                        >
-                          Copy Link
-                        </button>
                       </div>
-                      <button
-                        onClick={() => window.open((cls as any).attendanceLink, '_blank')}
-                        className="text-xs text-gray-600 hover:text-gray-800 underline"
-                      >
-                        Open Link
-                      </button>
+                      
+                      <div className="max-w-sm">
+                        <input
+                          type="text"
+                          value={(cls as any).attendanceLink}
+                          readOnly
+                          className="w-full text-xs font-mono text-gray-700 bg-gray-50 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          onClick={(e) => {
+                            const input = e.target as HTMLInputElement;
+                            input.select();
+                          }}
+                        />
+                        
+                        <div className="flex space-x-2 mt-2">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText((cls as any).attendanceLink);
+                              alert('Attendance link copied to clipboard!');
+                            }}
+                            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
+                          >
+                            📋 Copy
+                          </button>
+                          <button
+                            onClick={() => window.open((cls as any).attendanceLink, '_blank')}
+                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors"
+                          >
+                            🔗 Open
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className="text-xs text-gray-500">
@@ -470,6 +498,13 @@ export const ClassManagement: React.FC = () => {
               </button>
             </div>
             <button 
+              onClick={() => setShowBulkModal(true)}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Bulk Create
+            </button>
+            <button 
               onClick={() => setShowAddModal(true)}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
@@ -517,6 +552,17 @@ export const ClassManagement: React.FC = () => {
             <option value="Engineering">Engineering</option>
           </select>
 
+          <select
+            value={filterBatch}
+            onChange={(e) => setFilterBatch(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Batches</option>
+            {batches.map(batch => (
+              <option key={batch.id} value={batch.id}>{batch.name}</option>
+            ))}
+          </select>
+
           <div className="flex items-center text-sm text-gray-600">
             <BookOpen className="mr-2 h-4 w-4" />
             {filteredClasses.length} classes
@@ -558,11 +604,13 @@ export const ClassManagement: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="p-2 bg-purple-100 rounded-lg">
-              <MapPin className="h-6 w-6 text-purple-600" />
+              <Users className="h-6 w-6 text-purple-600" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Rooms Used</p>
-              <p className="text-2xl font-bold text-gray-900">{rooms.length}</p>
+              <p className="text-sm font-medium text-gray-600">Active Batches</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {new Set(classes.filter(cls => cls.batchId).map(cls => cls.batchId)).size}
+              </p>
             </div>
           </div>
         </div>
@@ -631,6 +679,15 @@ export const ClassManagement: React.FC = () => {
         onClose={() => setShowAddModal(false)} 
         onClassCreated={() => {
           setShowAddModal(false);
+          fetchClasses();
+        }} 
+      />
+
+      <BulkClassCreationModal 
+        isOpen={showBulkModal} 
+        onClose={() => setShowBulkModal(false)} 
+        onClassesCreated={() => {
+          setShowBulkModal(false);
           fetchClasses();
         }} 
       />

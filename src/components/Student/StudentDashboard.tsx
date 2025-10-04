@@ -74,19 +74,61 @@ const StudentDashboard: React.FC = () => {
     
     setLoading(true);
     try {
-      // Get all classes
-      const allClasses = await DatabaseService.getClasses();
+      console.log('📚 Loading enrolled classes for student:', currentUser.email);
       
-      // Filter classes where student is enrolled (by classIds or batchId)
+      // Method 1: Try to get classes from student's timetable (preferred)
       const studentData = currentUser as any;
-      const studentClasses = allClasses.filter(cls => 
-        studentData.classIds?.includes(cls.id) || 
-        studentData.batchId === cls.batchId
-      );
+      if (studentData.timetable && Array.isArray(studentData.timetable) && studentData.timetable.length > 0) {
+        console.log('✅ Found timetable data:', studentData.timetable.length, 'classes');
+        
+        // Convert timetable entries to ClassSchedule format
+        const timetableClasses: ClassSchedule[] = studentData.timetable.map((entry: any) => ({
+          id: entry.classId || entry.id,
+          className: entry.className,
+          courseCode: entry.courseCode,
+          instructor: entry.instructor,
+          department: entry.department || '',
+          semester: entry.semester || '',
+          year: entry.year || '',
+          batchId: entry.batchId || studentData.batchId || '',
+          schedule: {
+            day: entry.day,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            room: entry.room
+          },
+          capacity: 0,
+          enrolledStudents: 0,
+          isActive: true,
+          attendanceLink: entry.attendanceLink || null,
+          createdAt: entry.addedAt || new Date(),
+          updatedAt: new Date()
+        }));
+        
+        setEnrolledClasses(timetableClasses);
+        console.log('🎯 Set enrolled classes from timetable:', timetableClasses.length);
+        return;
+      }
       
+      // Method 2: Fallback to batch-based filtering
+      console.log('⚠️ No timetable found, trying batch-based approach');
+      const allClasses = await DatabaseService.getClasses();
+      console.log('📋 Total classes in database:', allClasses.length);
+      
+      // Filter classes by batchId
+      const studentClasses = allClasses.filter(cls => {
+        const match = studentData.batchId === cls.batchId;
+        if (match) {
+          console.log(`✅ Matched class: ${(cls as any).className || cls.name || cls.subject} (batch: ${cls.batchId})`);
+        }
+        return match;
+      });
+      
+      console.log(`🎯 Found ${studentClasses.length} classes for batch: ${studentData.batchId}`);
       setEnrolledClasses(studentClasses);
+      
     } catch (error) {
-      console.error('Error loading enrolled classes:', error);
+      console.error('❌ Error loading enrolled classes:', error);
     } finally {
       setLoading(false);
     }

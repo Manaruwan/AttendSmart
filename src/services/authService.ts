@@ -130,7 +130,12 @@ export class AuthService {
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
-            callback(userDoc.data() as BaseUser);
+            const userData = userDoc.data() as BaseUser;
+            // Ensure the id is included in the user data
+            callback({
+              ...userData,
+              id: userDoc.id
+            });
           } else {
             callback(null);
           }
@@ -152,7 +157,14 @@ export class AuthService {
     
     try {
       const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      return userDoc.exists() ? userDoc.data() as BaseUser : null;
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as BaseUser;
+        return {
+          ...userData,
+          id: userDoc.id
+        };
+      }
+      return null;
     } catch (error) {
       console.error('Error getting current user:', error);
       return null;

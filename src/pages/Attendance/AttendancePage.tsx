@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Camera, MapPin, Clock, CheckCircle, XCircle, Calendar, Filter, Loader } from 'lucide-react';
 import { useFirebaseAuth } from '../../hooks/useFirebaseAuth';
 import { FaceRecognitionCamera } from '../../components/Attendance/FaceRecognitionCamera';
 import { AttendanceService } from '../../services/attendanceService';
 import { AttendanceRecord } from '../../types/firebaseTypes';
+import { isWithinCampus, isWithinAllowedHours, getCampusInfo } from '../../utils/campusLocations';
 
 export const AttendancePage: React.FC = () => {
   const { currentUser } = useFirebaseAuth();
+  const { classId } = useParams<{ classId: string }>();
+  const [searchParams] = useSearchParams();
+  const [currentClassId, setCurrentClassId] = useState<string | null>(null);
+  const [className, setClassName] = useState<string>('');
   const [showFaceCamera, setShowFaceCamera] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'pending' | 'verified' | 'failed'>('pending');
   const [faceStatus, setFaceStatus] = useState<'pending' | 'verified' | 'failed'>('pending');
@@ -21,6 +27,19 @@ export const AttendancePage: React.FC = () => {
     late: 0,
     absent: 0
   });
+
+  useEffect(() => {
+    // Extract class information from URL
+    if (classId) {
+      setCurrentClassId(classId);
+      // Extract class name from search params or fetch from database
+      const classNameParam = searchParams.get('className');
+      if (classNameParam) {
+        setClassName(classNameParam);
+      }
+      console.log('🎯 Attendance for class:', classId, classNameParam);
+    }
+  }, [classId, searchParams]);
 
   useEffect(() => {
     if (currentUser) {
@@ -79,18 +98,29 @@ export const AttendancePage: React.FC = () => {
           const { latitude, longitude } = position.coords;
           setCurrentLocation({ lat: latitude, lng: longitude });
           
+          console.log('📍 User location:', latitude, longitude);
+          
           try {
-            // Verify location against campus boundaries
-            const isWithinCampus = await AttendanceService.verifyLocation(
-              latitude,
-              longitude,
-              'main-campus' // Use the first campus location ID
-            );
+            // Check if within campus boundaries
+            const withinCampus = isWithinCampus(latitude, longitude, 'main-campus');
             
-            if (isWithinCampus) {
+            // Check if within allowed hours
+            const withinHours = isWithinAllowedHours('main-campus');
+            
+            console.log('🎯 Location verification:', { withinCampus, withinHours });
+            
+            if (withinCampus && withinHours) {
               setLocationStatus('verified');
+              const campusInfo = getCampusInfo('main-campus');
+              console.log(`✅ Location verified at ${campusInfo.name}`);
             } else {
               setLocationStatus('failed');
+              if (!withinCampus) {
+                console.log('❌ Not within campus boundaries');
+              }
+              if (!withinHours) {
+                console.log('❌ Outside allowed hours');
+              }
             }
           } catch (error) {
             console.error('Location verification failed:', error);
@@ -150,7 +180,7 @@ export const AttendancePage: React.FC = () => {
       // Mark attendance
       await AttendanceService.markAttendance({
         studentId: currentUser.id,
-        classId: 'default-class', // You would get this from current class schedule
+        classId: currentClassId || 'default-class', // Use the actual class ID from URL
         faceVerified: true,
         locationVerified: true,
         faceConfidence: faceConfidence,
@@ -158,7 +188,7 @@ export const AttendancePage: React.FC = () => {
         capturedImage: imageUrl
       });
 
-      alert('Attendance marked successfully!');
+      alert(`Attendance marked successfully for ${className || 'class'}!`);
       
       // Reset verification status
       setLocationStatus('pending');
@@ -201,9 +231,14 @@ export const AttendancePage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {className ? `Attendance - ${className}` : 'Attendance Management'}
+            </h1>
             <p className="text-gray-600 mt-1">
-              {currentUser?.role === 'student' ? 'Mark your attendance' : 'View and manage attendance'}
+              {currentUser?.role === 'student' ? 
+                (className ? `Mark attendance for ${className}` : 'Mark your attendance') : 
+                'View and manage attendance'
+              }
             </p>
           </div>
           <div className="flex items-center space-x-2">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Check, X, Eye, User, FileText } from 'lucide-react';
-import { collection, query, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { Clock, Check, X, Eye, User, FileText, Trash2 } from 'lucide-react';
+import { collection, query, getDocs, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { LateSubmissionRequest } from '../../types';
 import { format } from 'date-fns';
@@ -107,6 +107,23 @@ const LateSubmissionManagement: React.FC = () => {
     } catch (error) {
       console.error('Error rejecting request:', error);
       alert('Failed to reject request. Please try again.');
+    }
+  };
+
+  const handleDelete = async (request: LateSubmissionRequest) => {
+    if (!confirm(`Are you sure you want to delete this late submission request from ${request.studentName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const requestRef = doc(db, 'lateSubmissionRequests', request.id!);
+      await deleteDoc(requestRef);
+      
+      await fetchLateSubmissionRequests();
+      alert('Late submission request deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      alert('Failed to delete request. Please try again.');
     }
   };
 
@@ -293,13 +310,22 @@ const LateSubmissionManagement: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => openRequestModal(request)}
-                        className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span>Review</span>
-                      </button>
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => openRequestModal(request)}
+                          className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                        >
+                          <Eye className="h-4 w-4" />
+                          <span>Review</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(request)}
+                          className="text-red-600 hover:text-red-900 flex items-center space-x-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

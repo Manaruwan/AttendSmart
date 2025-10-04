@@ -2210,54 +2210,29 @@ Downloaded by: Admin
                     </div>
                   </div>
                   
-                  {/* Filter submissions based on search term */}
-                  {(() => {
-                    const filteredSubmissions = viewingSubmissions.filter(submission => {
-                      if (!submissionSearchTerm) return true;
-                      
-                      const searchLower = submissionSearchTerm.toLowerCase();
-                      const studentName = (submission.studentName || getStudentName(submission.studentId) || '').toLowerCase();
-                      const email = (submission.email || '').toLowerCase();
-                      const status = (submission.status || '').toLowerCase();
-                      const batchName = (submission.batchName || getBatchName(submission.batchId || viewingAssignment?.batchId || '') || '').toLowerCase();
-                      
-                      return studentName.includes(searchLower) || 
-                             email.includes(searchLower) || 
-                             status.includes(searchLower) ||
-                             batchName.includes(searchLower);
-                    });
-                    
-                    return (
-                      <>
-                        {/* Update submission count */}
-                        <div className="mb-4 text-sm text-gray-600">
-                          Showing {filteredSubmissions.length} of {viewingSubmissions.length} submissions
-                          {submissionSearchTerm && (
-                            <span className="ml-2 text-blue-600">
-                              (filtered by: "{submissionSearchTerm}")
-                            </span>
-                          )}
-                        </div>
+                  <div className="grid gap-4">
+                    {viewingSubmissions
+                      .filter(submission => {
+                        if (!submissionSearchTerm) return true;
                         
-                        <div className="grid gap-4">
-                          {filteredSubmissions.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                              <Users size={48} className="mx-auto mb-4 text-gray-300" />
-                              <p>
-                                {submissionSearchTerm 
-                                  ? `No submissions found matching "${submissionSearchTerm}"`
-                                  : 'No submissions available'
-                                }
-                              </p>
-                            </div>
-                          ) : (
-                            filteredSubmissions.map((submission, submissionIndex) => (
+                        const searchLower = submissionSearchTerm.toLowerCase();
+                        const studentName = (submission.studentName || getStudentName(submission.studentId) || '').toLowerCase();
+                        const email = (submission.email || '').toLowerCase();
+                        const status = (submission.status || '').toLowerCase();
+                        const batchName = (submission.batchName || getBatchName(submission.batchId || viewingAssignment?.batchId || '') || '').toLowerCase();
+                        
+                        return studentName.includes(searchLower) || 
+                               email.includes(searchLower) || 
+                               status.includes(searchLower) ||
+                               batchName.includes(searchLower);
+                      })
+                      .map((submission, index) => (
                       <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-3 mb-2">
                               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                <span className="text-sm font-medium text-blue-600">{submissionIndex + 1}</span>
+                                <span className="text-sm font-medium text-blue-600">{index + 1}</span>
                               </div>
                               <div>
                                 <h4 className="font-medium text-gray-900">{submission.studentName}</h4>
@@ -2359,10 +2334,7 @@ Downloaded by: Admin
                         </div>
                       </div>
                     ))}
-                        </div>
-                      </>
-                    );
-                  })()}
+                  </div>
                 </div>
               )}
             </div>

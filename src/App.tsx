@@ -1,35 +1,43 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { FirebaseAuthProvider } from './hooks/useFirebaseAuth';
 import { ProtectedRoute } from './components/Common/ProtectedRoute';
-import { LoginForm } from './components/Auth/LoginForm';
 import { FirebaseLoginForm } from './components/Auth/FirebaseLoginForm';
 import { DashboardLayout } from './components/Layout/DashboardLayout';
-import { Dashboard } from './pages/Dashboard';
-import { SimpleDashboard } from './pages/SimpleDashboard';
-import { AttendancePage } from './pages/Attendance/AttendancePage';
-import StudentDashboard from './components/Student/StudentDashboard';
-import StudentAssignmentDashboard from './components/Student/StudentAssignmentDashboard';
-
-
-import { AdminSetup } from './components/Setup/AdminSetup';
-import { AccountCreation } from './components/Setup/AccountCreation';
-
-import { UserManagement } from './components/Admin/UserManagement';
-import { ClassManagement } from './components/Admin/ClassManagement';
-import { AttendanceReports } from './components/Admin/AttendanceReports';
-import { AdminSettings } from './components/Admin/AdminSettings';
-import { PayrollManagement } from './components/Admin/PayrollManagement';
-import AssignmentManagement from './components/Admin/AssignmentManagement';
-import LateSubmissionManagement from './components/Admin/LateSubmissionManagement';
-
-import AdminLeaveRequestsPage from './pages/AdminLeaveRequestsPage';
-import LeaveRequestsPage from './pages/LeaveRequestsPage';
-import StaffLeaveRequestPage from './components/Staff/StaffLeaveRequestPage';
-
-import StaffSettingsPage from './pages/StaffSettingsPage';
 import { useFirebaseAuth } from './hooks/useFirebaseAuth';
 import { MitigationRouter } from './components/Common/MitigationRouter';
+
+// Lazy load components for better performance
+const Dashboard = React.lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const SimpleDashboard = React.lazy(() => import('./pages/SimpleDashboard').then(module => ({ default: module.SimpleDashboard })));
+const AttendancePage = React.lazy(() => import('./pages/Attendance/AttendancePage').then(module => ({ default: module.AttendancePage })));
+const ClassAttendancePage = React.lazy(() => import('./pages/Attendance/ClassAttendancePage').then(module => ({ default: module.ClassAttendancePage })));
+const StudentDashboard = React.lazy(() => import('./components/Student/StudentDashboard'));
+const StudentAssignmentDashboard = React.lazy(() => import('./components/Student/StudentAssignmentDashboard'));
+const StudentBatchSchedule = React.lazy(() => import('./components/Student/StudentBatchSchedule').then(module => ({ default: module.StudentBatchSchedule })));
+
+const AdminSetup = React.lazy(() => import('./components/Setup/AdminSetup').then(module => ({ default: module.AdminSetup })));
+const AccountCreation = React.lazy(() => import('./components/Setup/AccountCreation').then(module => ({ default: module.AccountCreation })));
+
+const UserManagement = React.lazy(() => import('./components/Admin/UserManagement').then(module => ({ default: module.UserManagement })));
+const ClassManagement = React.lazy(() => import('./components/Admin/ClassManagement').then(module => ({ default: module.ClassManagement })));
+const AttendanceReports = React.lazy(() => import('./components/Admin/AttendanceReports').then(module => ({ default: module.AttendanceReports })));
+const AdminSettings = React.lazy(() => import('./components/Admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
+const PayrollManagement = React.lazy(() => import('./components/Admin/PayrollManagement').then(module => ({ default: module.PayrollManagement })));
+const AssignmentManagement = React.lazy(() => import('./components/Admin/AssignmentManagement'));
+const LateSubmissionManagement = React.lazy(() => import('./components/Admin/LateSubmissionManagement'));
+
+const AdminLeaveRequestsPage = React.lazy(() => import('./pages/AdminLeaveRequestsPage'));
+const LeaveRequestsPage = React.lazy(() => import('./pages/LeaveRequestsPage'));
+const StaffLeaveRequestPage = React.lazy(() => import('./components/Staff/StaffLeaveRequestPage'));
+const StaffSettingsPage = React.lazy(() => import('./pages/StaffSettingsPage'));
+
+// Loading component
+const LoadingSpinner: React.FC = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+  </div>
+);
 
 // Component to route to appropriate leave request interface based on user role
 const LeaveRequestRouter: React.FC = () => {
@@ -116,12 +124,10 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<FirebaseLoginForm />} />
-            <Route path="/old-login" element={<LoginForm />} />
-            <Route path="/firebase-login" element={<FirebaseLoginForm />} />
             <Route path="/create-account" element={<AccountCreation />} />
             
             {/* Public Attendance Route - Students can access without full login */}
-            <Route path="/attendance/:classId/:token" element={<AttendancePage />} />
+            <Route path="/attendance/:classId/:token" element={<ClassAttendancePage />} />
 
             <Route path="/admin-setup" element={<AdminSetup />} />
             <Route path="/simple-dashboard" element={<SimpleDashboard />} />
@@ -138,25 +144,39 @@ function App() {
               </ProtectedRoute>
             }>
               <Route index element={<Navigate to="/app/dashboard" replace />} />
-              <Route path="dashboard" element={<DashboardRouter />} />
-              <Route path="attendance" element={<AttendancePage />} />
+              <Route path="dashboard" element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <DashboardRouter />
+                </Suspense>
+              } />
+              <Route path="attendance" element={
+                <Suspense fallback={<LoadingSpinner />}>
+                  <AttendancePage />
+                </Suspense>
+              } />
               
               {/* Admin Routes */}
               <Route path="users" element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <UserManagement />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <UserManagement />
+                  </Suspense>
                 </ProtectedRoute>
               } />
               
               <Route path="classes" element={
                 <ProtectedRoute allowedRoles={['admin', 'lecturer']}>
-                  <ClassManagement />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <ClassManagement />
+                  </Suspense>
                 </ProtectedRoute>
               } />
               
               <Route path="reports" element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <AttendanceReports />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <AttendanceReports />
+                  </Suspense>
                 </ProtectedRoute>
               } />
               
@@ -204,12 +224,7 @@ function App() {
               {/* Student/Lecturer Routes */}
               <Route path="schedule" element={
                 <ProtectedRoute allowedRoles={['student', 'lecturer']}>
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                      <h1 className="text-2xl font-bold text-gray-900">My Schedule</h1>
-                      <p className="text-gray-600 mt-2">View your class schedule</p>
-                    </div>
-                  </div>
+                  <StudentBatchSchedule />
                 </ProtectedRoute>
               } />
               
